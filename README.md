@@ -158,9 +158,11 @@ digital-banking-api/
 │   │   │   │   ├── ClienteRepository.java
 │   │   │   │   ├── ContaRepository.java
 │   │   │   │   └── TransacaoRepository.java
-│   │   │   └── service                             # Business logic
-│   │   │       ├── ClienteService.java
-│   │   │       └── ContaService.java
+│   │   │   ├── service                             # Business logic
+│   │   │   │   ├── ClienteService.java
+│   │   │   │   └── ContaService.java
+│   │   │   └── util                                # Cross-cutting helpers
+│   │   │       └── PiiMasker.java                  # CPF/e-mail masking
 │   │   └── resources
 │   │       ├── application.properties              # App configuration (default profile)
 │   │       ├── application-prod.properties         # prod: Swagger/OpenAPI disabled
@@ -184,6 +186,8 @@ digital-banking-api/
 │               └── ContaServiceIntegrationTest.java  # H2 integration (concurrency, atomicity)
 ├── .env.example                            # Sample environment variables
 ├── .gitignore
+├── AUDITORIA_TECNICA.md                    # Technical audit (Portuguese)
+├── LICENSE                                 # MIT license
 ├── mvnw                                    # Maven Wrapper (Unix)
 ├── mvnw.cmd                                # Maven Wrapper (Windows)
 ├── pom.xml
@@ -209,7 +213,7 @@ java -version
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/digital-banking-api.git
+git clone https://github.com/emanuelvitorfn7-gif/digital-banking-api.git
 cd digital-banking-api
 ```
 
@@ -270,11 +274,23 @@ spring.jpa.open-in-view=false
 
 ### Create the schema manually
 
+The application does **not** create the `digital_banking` database. The
+`schema.sql` script begins with `USE digital_banking;`, so the database **must
+already exist** before you run it. Create it first:
+
+```sql
+CREATE DATABASE IF NOT EXISTS digital_banking
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+```
+
+Then apply the tables:
+
 1. Open **MySQL Workbench** and connect to your server.
-2. Open the SQL script `src/main/resources/db/schema.sql`.
-3. Confirm the script contains `USE digital_banking;`.
-4. Execute it. The script is idempotent (`CREATE TABLE IF NOT EXISTS`), so it is
-   safe to run more than once.
+2. Run the `CREATE DATABASE` statement above (or otherwise ensure a
+   `digital_banking` database exists).
+3. Open the SQL script `src/main/resources/db/schema.sql`.
+4. Execute it against your server.
 
 The script creates three tables:
 
@@ -283,6 +299,13 @@ The script creates three tables:
 | `clientes`   | Customers (unique `cpf` and `email`).                |
 | `contas`     | Bank accounts (unique `numero`, `saldo DECIMAL(19,2)`, FK to `clientes`). |
 | `transacoes` | Money movements (`tipo`, `valor DECIMAL(19,2)`, FKs to `contas`). |
+
+> **`IF NOT EXISTS` is not a migration tool.** The script is safe to re-run
+> because `CREATE TABLE IF NOT EXISTS` simply skips a table that already exists.
+> It does **not** migrate data, alter columns, add or drop constraints, or repair
+> an outdated schema: an existing table with a different structure is left
+> untouched. Structural changes must be applied with explicit `ALTER TABLE`
+> statements or a migration tool (e.g. Flyway/Liquibase).
 
 > The `schema.sql` script is **never executed automatically** by the application
 > (`spring.sql.init.mode=never`). It is a reference script for the DBA/developer.
@@ -308,6 +331,14 @@ environment.
 
 Copy `.env.example` to `.env` and fill in your own values, or export the variables
 in your shell.
+
+> **Why is `application-prod.properties` committed?** That file **is versioned on
+> purpose**, unlike other local configuration files. It contains **no secrets or
+> credentials** — only `springdoc.api-docs.enabled=false` and
+> `springdoc.swagger-ui.enabled=false` — so it is safe to share and keeps the `prod`
+> profile reproducible. Files that typically hold machine-specific values or
+> credentials (`.env`, `application-local.*`, `application-dev.*`) are excluded by
+> `.gitignore`.
 
 ---
 
@@ -607,10 +638,10 @@ Run the full suite:
 
 | Test class                     | Type                | Tests | What it covers                                             |
 |--------------------------------|---------------------|-------|------------------------------------------------------------|
-| `ClienteServiceTest`           | Unit (Mockito)      | 7     | Customer creation, CPF check digits, duplicates, lookups.  |
+| `ClienteServiceTest`           | Unit (Mockito)      | 7     | Customer creation, CPF normalization/check digits, duplicate detection. |
 | `ContaServiceTest`             | Unit (Mockito)      | 13    | Account creation, deposit, withdrawal, transfer, limits.   |
 | `ContaServiceIntegrationTest`  | Integration (H2)    | 3     | Concurrency, rollback atomicity, balance/statement consistency. |
-| `RepositorioMySqlIntegrationTest` | Integration (MySQL) | 4  | JPQL, `@Lock(PESSIMISTIC_WRITE)` and constraints on real MySQL. |
+| `RepositorioMySqlIntegrationTest` | Integration (MySQL) | 4  | Derived queries, origin/destination ordering, `@Lock(PESSIMISTIC_WRITE)` and unique constraints on real MySQL. |
 | `ClienteResponseTest`          | Unit (DTO)          | 3     | CPF/e-mail masking, including short/absent values.         |
 | `SecurityIntegrationTest`      | Integration (H2)    | 5     | 401 without credentials, 403 with insufficient role, 201 with `ADMIN`, public Swagger, masked CPF. |
 | `SwaggerProfileIntegrationTest`| Integration (H2)    | 2     | OpenAPI/Swagger disabled under the `prod` profile (A-05).  |
@@ -622,17 +653,21 @@ Run the full suite:
 | `OpenApiDocumentationTest`     | Integration         | 2     | `/v3/api-docs` and Swagger UI availability.                |
 | **Total**                      |                     | **65**|                                                            |
 
+> **Docker is required for 4 of the 65 tests.** `RepositorioMySqlIntegrationTest`
+> runs against a real MySQL 8.4.7 container started by **Testcontainers**. When
+> Docker is not available, those 4 tests are **skipped automatically**
+> (`@Testcontainers(disabledWithoutDocker = true)`) and the remaining **61 tests**
+> still run and pass.
+
 - **Unit tests** isolate the service layer with Mockito.
 - **Web slice tests** (`@WebMvcTest`) verify the controller layer and error mapping.
 - **Integration tests** boot the full context against an in-memory **H2** database
   (test scope only) to validate the generated OpenAPI endpoints, and — for the
   transfers flow — run parallel threads that assert balance conservation, atomic
   rollback on failure, and balance/statement consistency.
-- **MySQL integration tests** (`@DataJpaTest` + **Testcontainers**) run against a
-  real `mysql:8.4.7` container to validate the derived queries, the pessimistic
-  `@Lock` and the database constraints (unique keys, foreign keys) on the actual
-  database engine. These tests are skipped automatically when Docker is not
-  available.
+- **MySQL integration tests** (`RepositorioMySqlIntegrationTest`, 4 tests) require
+  **Docker**: they start a real MySQL 8.4.7 container via **Testcontainers** and are
+  skipped automatically when Docker is not available.
 
 ---
 
@@ -661,7 +696,8 @@ backend architecture rather than production-grade security. Known limitations:
 - **PII masking** covers CPF and e-mail in `ClienteResponse`; the customer name is
   still returned in full, and masking is not role-dependent.
 - **Database credentials** are supplied via environment variables and must be kept
-  out of version control. `.gitignore` excludes `.env` and local profile files.
+  out of version control. `.gitignore` excludes `.env` and local profile files;
+  `application-prod.properties` is the deliberate exception (it contains no secrets).
 - **Swagger UI / OpenAPI endpoints** are public and enabled by default; they are
   disabled only when the `prod` profile is active.
 - **Error messages** return generic text for unexpected errors to avoid leaking
