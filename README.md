@@ -1,13 +1,19 @@
-# Digital Banking API
+# Digital Banking — Full Stack Application
 
-A RESTful backend API that simulates core digital banking operations — customer
-onboarding, account management, deposits, withdrawals, transfers, and account
-statements — built with **Java 25** and **Spring Boot 4.1.1**.
+A **full-stack** application that simulates core digital banking operations —
+customer onboarding, account management, deposits, withdrawals, transfers, and
+account statements.
 
-This project was created as a **Back-End Java portfolio project** to demonstrate
-clean layered architecture, transactional consistency for money movements, robust
-input validation, consistent error handling, automated testing, and interactive
-API documentation with OpenAPI/Swagger.
+- **Back-End** — a RESTful API built with **Java 25** and **Spring Boot 4.1.1**,
+  secured with HTTP Basic, persisting to **MySQL** through Spring Data JPA.
+- **Front-End** — a single-page app in [`frontend/`](frontend) built with
+  **React 19 + TypeScript + Vite 8 + Tailwind CSS 4**, consuming the API through a
+  Vite dev proxy (no CORS configuration required).
+
+This project was built as a **portfolio project** to demonstrate clean layered
+architecture, transactional consistency for money movements, robust input
+validation, consistent error handling, automated testing, and a clean React front
+end wired to real backend endpoints.
 
 > ⚠️ This is a study/portfolio project. It is **not** intended for production use.
 > See the [Security Limitations](#-security-limitations) section.
@@ -21,6 +27,7 @@ API documentation with OpenAPI/Swagger.
 - [Architecture](#-architecture)
 - [Project Structure](#-project-structure)
 - [Getting Started](#-getting-started)
+- [Front-End](#-front-end-react--typescript--vite)
 - [MySQL Configuration](#-mysql-configuration)
 - [Environment Variables](#-environment-variables)
 - [Maven Wrapper Commands](#-maven-wrapper-commands)
@@ -28,6 +35,7 @@ API documentation with OpenAPI/Swagger.
 - [JSON Examples](#-json-examples)
 - [API Documentation (Swagger UI)](#-api-documentation-swagger-ui)
 - [Automated Tests](#-automated-tests)
+- [Screenshots](#-screenshots)
 - [Security Limitations](#-security-limitations)
 - [Roadmap](#-roadmap)
 - [License](#-license)
@@ -50,6 +58,7 @@ API documentation with OpenAPI/Swagger.
 - **UTC timestamps** — transaction timestamps are generated and stored in UTC for consistency.
 - **Consistent error responses** — a global exception handler returns a uniform error body with the correct HTTP status.
 - **Interactive documentation** — OpenAPI 3 specification with Swagger UI.
+- **Web UI (bonus)** — a React + TypeScript single-page app in [`frontend/`](frontend) that exercises every endpoint with a fintech-style interface.
 
 ---
 
@@ -68,12 +77,37 @@ API documentation with OpenAPI/Swagger.
 | Build tool          | Maven (via Maven Wrapper)                               |
 | Testing             | JUnit 5, Mockito, Spring Test, MockMvc, Testcontainers  |
 | Test databases      | H2 (in-memory) and MySQL 8.4.7 (Testcontainers), test scope only |
+| Front-End (bonus)   | React 19, TypeScript, Vite 8, Tailwind CSS 4, React Router 7   |
+| Front-End tests     | Vitest, React Testing Library, MSW                              |
 
 ---
 
 ## 🏛 Architecture
 
-The application follows the classic **Controller → Service → Repository** layered
+### Full-stack request flow
+
+```
+Browser (React SPA, :5173)
+        │  fetch("/api/…")                  ← same-origin, no CORS
+        ▼
+Vite dev server (:5173)
+        │  proxy /api → http://localhost:8081
+        ▼
+Spring Boot API (:8081)
+        │  HTTP Basic auth → Controller → Service → Repository (JPA)
+        ▼
+MySQL 8.4.7 (digital_banking)
+```
+
+In development the React app calls the relative path `/api/*`; the **Vite dev
+proxy** forwards it to the Spring Boot server, so both run on separate ports
+without any CORS configuration. For a production build you would serve
+`frontend/dist` from a static host and point `VITE_API_BASE_URL` at the deployed
+API (see [Front-End](#-front-end-react--typescript--vite)).
+
+### Backend layers
+
+The backend follows the classic **Controller → Service → Repository** layered
 architecture, which keeps HTTP concerns, business rules, and data access clearly
 separated.
 
@@ -184,6 +218,21 @@ digital-banking-api/
 │               ├── ClienteServiceTest.java
 │               ├── ContaServiceTest.java
 │               └── ContaServiceIntegrationTest.java  # H2 integration (concurrency, atomicity)
+├── frontend/                               # React + TypeScript + Vite single-page app
+│   ├── src
+│   │   ├── api/                            # fetch client, DTO types, endpoint wrappers
+│   │   ├── auth/                           # in-memory auth context (basic credentials)
+│   │   ├── components/                     # layout, UI primitives, data components
+│   │   ├── features/                       # login, dashboard, clientes, contas, transferencias, extrato
+│   │   ├── hooks/                          # useRequest (loading/error state)
+│   │   ├── lib/                            # formatters, masks, validators
+│   │   ├── mocks/                          # MSW handlers/server (tests only)
+│   │   └── test/                           # Vitest setup
+│   ├── .env.example                        # Front-End env sample
+│   ├── index.html
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts                      # dev proxy (/api → Back-End) + Vitest config
 ├── .env.example                            # Sample environment variables
 ├── .gitignore
 ├── AUDITORIA_TECNICA.md                    # Technical audit (Portuguese)
@@ -250,6 +299,93 @@ $env:DB_PASSWORD = "your_password"
 ```
 
 The API starts on **http://localhost:8080**.
+
+---
+
+## 🖥 Front-End (React + TypeScript + Vite)
+
+A companion single-page application lives in [`frontend/`](frontend). It is a **UI
+layer only** — every action calls the real REST API above; it holds no business
+logic and no database access of its own.
+
+### Stack
+
+| Category    | Technology                                    |
+|-------------|-----------------------------------------------|
+| UI library  | React 19                                      |
+| Language    | TypeScript                                    |
+| Build tool  | Vite 8                                        |
+| Styling     | Tailwind CSS 4                                 |
+| Routing     | React Router 7                                |
+| HTTP client | Native `fetch` (no Axios)                      |
+| Tests       | Vitest, React Testing Library, MSW             |
+
+### Prerequisites
+
+- **Node.js 20+** and **npm** (built and tested with Node 24 / npm 11).
+- The **Back-End running** (see [Getting Started](#-getting-started)).
+
+### Install and run
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The app starts on **http://localhost:5173**. In development, Vite proxies `/api/*`
+to the Back-End, so **no CORS configuration is required on the Back-End**.
+
+> The dev proxy target defaults to `http://localhost:8081`. If your Back-End runs
+> on the default port `8080` (see [Getting Started](#-getting-started)), set
+> `VITE_API_TARGET=http://localhost:8080` in `frontend/.env`.
+
+Create your own env file if needed:
+
+```bash
+cp .env.example .env
+```
+
+| Variable            | Default                 | Description                                              |
+|---------------------|-------------------------|----------------------------------------------------------|
+| `VITE_API_BASE_URL` | `/api`                  | URL prefix the browser uses (routed through the Vite proxy). |
+| `VITE_API_TARGET`   | `http://localhost:8081` | Back-End URL the dev server proxies `/api` to.            |
+
+### Scripts
+
+| Task             | Command           |
+|------------------|-------------------|
+| Dev server       | `npm run dev`     |
+| Production build | `npm run build`   |
+| Preview build    | `npm run preview` |
+| Tests            | `npm test`        |
+| Tests (watch)    | `npm run test:watch` |
+| Type check       | `npm run typecheck`  |
+
+### Running both together
+
+1. Start the Back-End: `.\mvnw.cmd spring-boot:run` (Windows) / `./mvnw spring-boot:run` (Unix).
+2. In another terminal, start the Front-End: `cd frontend && npm run dev`.
+3. Open **http://localhost:5173** and log in with `admin/admin123` (write) or `cliente/cliente123` (read-only).
+
+### Screens
+
+- **Login** — authenticates with the Back-End HTTP Basic credentials.
+- **Dashboard** — looks up an account by id and shows its balance and holder.
+- **Clientes** — create a customer, retrieve one by id.
+- **Contas** — open an account for an existing customer.
+- **Depósito** — credit an account.
+- **Saque** — debit an account (overdraft is rejected by the API).
+- **Transferência** — move money between two accounts.
+- **Extrato** — paginated transaction statement.
+- **Sobre** — project and security notes.
+
+> **Security limitations of the UI.** Authentication is demo-grade: credentials are
+> validated with a read-only probe against the API (there is no login endpoint) and
+> are kept **only in memory** — never in `localStorage`/`sessionStorage` — so they
+> are lost on refresh and no password is ever embedded in the bundle. Because the
+> API exposes no account/customer listing, some flows require typing an id
+> manually. The UI is for demonstration only; do **not** enter real personal data.
 
 ---
 
@@ -627,13 +763,22 @@ The documentation includes:
 
 ## 🧪 Automated Tests
 
-The project has **65 automated tests**, all passing.
+The project ships **90 automated tests** — **65 Back-End (Java)** and **25
+Front-End (Vitest + React Testing Library + MSW)** — all passing.
 
-Run the full suite:
+**Back-End:**
 
 ```bash
-./mvnw test          # Linux / macOS
-.\mvnw.cmd test      # Windows
+./mvnw clean verify      # Linux / macOS
+.\mvnw.cmd clean verify  # Windows
+```
+
+**Front-End:**
+
+```bash
+cd frontend
+npm test                 # run once (vitest run)
+npm run test:watch       # watch mode
 ```
 
 | Test class                     | Type                | Tests | What it covers                                             |
@@ -669,6 +814,45 @@ Run the full suite:
   **Docker**: they start a real MySQL 8.4.7 container via **Testcontainers** and are
   skipped automatically when Docker is not available.
 
+### Front-End tests (25)
+
+| Test file                              | Type           | Tests  | What it covers                                              |
+|----------------------------------------|----------------|--------|-------------------------------------------------------------|
+| `lib/formatters.test.ts`               | Unit           | 4      | BRL currency formatting and UTC date formatting.            |
+| `lib/masks.test.ts`                    | Unit           | 7      | Digit extraction, CPF mask, currency mask and parsing.      |
+| `lib/validators.test.ts`               | Unit           | 5      | CPF check digits (mod-11) and e-mail validation.            |
+| `api/client.test.ts`                   | Unit (MSW)     | 3      | JSON success, 409 message mapping, 401 without body.        |
+| `components/ui/CurrencyInput.test.tsx` | Component      | 2      | Masked input and validation message.                        |
+| `features/auth/LoginPage.test.tsx`     | Component      | 2      | Invalid-credentials error and successful navigation.        |
+| `features/contas/DepositoPage.test.tsx`| Component      | 2      | Deposit flow with updated balance and pre-submit validation.|
+| **Total**                              |                | **25** |                                                             |
+
+> The front-end tests use **MSW** to mock the HTTP layer, so they run without a
+> live backend. They cover masking/formatting/validation logic, the API client
+> error mapping, and the login and deposit flows via React Testing Library.
+
+### Results (verified)
+
+| Suite                      | Command                   | Result                          |
+|----------------------------|---------------------------|---------------------------------|
+| Back-End                   | `.\mvnw.cmd clean verify` | **65 / 65 passed** (0 skipped)  |
+| Front-End                  | `npm test`                | **25 / 25 passed**              |
+| Front-End type check       | `npm run typecheck`       | **0 TypeScript errors**         |
+| Front-End production build | `npm run build`           | **success**                     |
+
+> Docker was available during the last Back-End run, so the 4 Testcontainers
+> tests executed against an isolated MySQL container (they were **not** skipped).
+
+---
+
+## 📸 Screenshots
+
+> **Screenshots coming soon.** Captures of the running application (login,
+> dashboard with a real returned balance, account statement, and transfer
+> confirmation) are being prepared and will be added to a `docs/screenshots/`
+> folder in a future update. No placeholder or fabricated images are included
+> in this repository at the moment.
+
 ---
 
 ## 🔒 Security Limitations
@@ -702,6 +886,9 @@ backend architecture rather than production-grade security. Known limitations:
   disabled only when the `prod` profile is active.
 - **Error messages** return generic text for unexpected errors to avoid leaking
   internal details, but this is not a substitute for a full security review.
+- **The Front-End is demo-grade too** — it validates credentials via a read-only
+  probe and keeps them only in memory (see the [Front-End](#-front-end-react--typescript--vite)
+  section). It is a UI demonstration, not a hardened client.
 
 Do **not** deploy this project to the public internet as-is.
 
