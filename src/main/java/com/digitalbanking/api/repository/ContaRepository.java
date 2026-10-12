@@ -14,6 +14,6 @@ public interface ContaRepository extends JpaRepository<Conta, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from Conta c where c.id = :id")
-    Optional<Conta> findByIdWithLock(@Param("id") Long id);
+    Optional<Conta> findByIdComBloqueio(@Param("id") Long id);
 
 }

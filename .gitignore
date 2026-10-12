@@ -106,8 +106,6 @@ application-dev.yaml
 application-prod.properties
 application-prod.yml
 application-prod.yaml
-# exceção: o perfil prod versionado (apenas desabilita Swagger/OpenAPI, sem segredos)
-!src/main/resources/application-prod.properties
 *-secret.properties
 *-secrets.properties
 secrets/
