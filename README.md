@@ -235,7 +235,6 @@ digital-banking-api/
 │   └── vite.config.ts                      # dev proxy (/api → Back-End) + Vitest config
 ├── .env.example                            # Sample environment variables
 ├── .gitignore
-├── AUDITORIA_TECNICA.md                    # Technical audit (Portuguese)
 ├── LICENSE                                 # MIT license
 ├── mvnw                                    # Maven Wrapper (Unix)
 ├── mvnw.cmd                                # Maven Wrapper (Windows)
@@ -896,8 +895,8 @@ Do **not** deploy this project to the public internet as-is.
 
 ## 🔭 Roadmap
 
-Planned improvements (not implemented yet). See [`AUDITORIA_TECNICA.md`](AUDITORIA_TECNICA.md)
-for the full technical audit and rationale.
+Planned improvements (not implemented yet). These were deliberately left out of
+scope to keep the schema and the domain rules stable.
 
 - **Transfer idempotency** via an `Idempotency-Key` header (requires a schema change).
 - **Real authentication/authorization** — replace the in-memory demo users with a
